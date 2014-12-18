@@ -7,8 +7,8 @@ import java.util.Random;
 public class Population {
 
 	private List<Individual> pop = new ArrayList<Individual>();
-	private static final int populationSize = 50;
-	private static final int sampleSize = 10;
+	private static final int populationSize = 25;
+	private static final int sampleSize = 1;
 	private double[] score = new double[populationSize];
 	private double[] distribProba = new double[populationSize];
 	
