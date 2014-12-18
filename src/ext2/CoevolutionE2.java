@@ -1,0 +1,208 @@
+package ext2;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.text.NumberFormat;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+
+
+public class CoevolutionE2 {
+
+	Population pop1;
+	Population pop2;
+	
+	Population newPop;
+	
+	private static double virulence = 1;
+	
+	private static final double mutationRate = 0.005;
+	
+	Random r = new Random();
+	
+	int nbGenerations = 600;
+	
+	int count = 0;
+	
+	double[][] objectiveFitness = new double[nbGenerations][2];
+	double[][] subjectiveFitness = new double[nbGenerations][2];
+	
+	public CoevolutionE2() {
+		pop1 = new Population("allZeros");
+		pop2 = new Population("allZeros");
+		
+		while (count < nbGenerations){
+			//System.out.println("Generation " + count + ":");
+			//System.out.println(pop1);
+			//System.out.println(pop2);
+			
+			executeGeneration();
+			count++;
+		}
+		
+		
+		System.out.println("--------------------------FINAL RESULT-----------------");
+		System.out.println(pop1);
+		System.out.println(pop2);
+	
+		try { writeInFile(); } catch (Exception e) {	e.printStackTrace();}
+	}
+	
+	public void printStatus() {
+		String s = "Gen " + count;
+		objectiveFitness[count][0] =  pop1.getAvrObjFitness();
+		objectiveFitness[count][1] =  pop2.getAvrObjFitness();
+		subjectiveFitness[count][0] = pop1.getAvrSubjFitness();
+		subjectiveFitness[count][1] = pop2.getAvrSubjFitness();
+		s += " // Pop 1 : Obj " + String.format("%.2f", pop1.getAvrObjFitness()) + " | Subj " + String.format("%.2f",pop1.getAvrSubjFitness());
+		s += " // Pop 2 : Obj " + String.format("%.2f", pop2.getAvrObjFitness()) + " | Subj " + String.format("%.2f",pop2.getAvrSubjFitness());
+		System.out.println(s);
+	}
+	
+	public void writeInFile() throws FileNotFoundException, UnsupportedEncodingException {
+		NumberFormat nf = NumberFormat.getNumberInstance(Locale.FRENCH);
+		
+		String number = "e2";
+		
+		PrintWriter pop1File = new PrintWriter("coevolution" + number + "-obj1.txt", "UTF-8");
+		for (int i=0 ; i < nbGenerations ; i++){
+			pop1File.println(nf.format(objectiveFitness[i][0]));
+		}
+		pop1File.close();
+		
+		PrintWriter pop2File = new PrintWriter("coevolution" + number + "-obj2.txt", "UTF-8");
+		for (int i=0 ; i < nbGenerations ; i++){
+			pop2File.println(nf.format(objectiveFitness[i][1]));
+		}
+		pop2File.close();
+	
+		PrintWriter subj1File = new PrintWriter("coevolution" + number + "-subj1.txt", "UTF-8");
+		for (int i=0 ; i < nbGenerations ; i++){
+			subj1File.println(nf.format(subjectiveFitness[i][0]));
+		}
+		subj1File.close();
+		
+		PrintWriter subj2File = new PrintWriter("coevolution" + number + "-subj2.txt", "UTF-8");
+		for (int i=0 ; i < nbGenerations ; i++){
+			subj2File.println(nf.format(subjectiveFitness[i][1]));
+		}
+		subj2File.close();
+	}
+	
+	public void executeGeneration() {
+		Individual a; Individual b;
+		List<Individual> Sa; List<Individual> Sb;
+		
+		//Fill with scores
+		for (int i=0 ; i < pop1.size() ; i++) {
+			a = pop1.getIndividual(i);
+			Sa = pop2.getSample();
+			pop1.setScore(i, calculateFitness(a, Sa));
+			
+			b = pop2.getIndividual(i);
+			Sb = pop1.getSample();
+			pop2.setScore(i, calculateFitness(b, Sb));
+		}
+		
+		prepareRouletteSelection(pop1);
+		prepareRouletteSelection(pop2);
+		
+		printStatus();
+		
+		Population tempPop1 = new Population();
+		Population tempPop2 = new Population();
+		
+		for (int i=0 ; i < pop1.size() ; i++) {
+			Individual select = getRouletteIndividual(pop1);
+			tempPop1.add(mutateIndiv(select, 1));
+		}
+		
+		for (int i=0 ; i < pop1.size() ; i++) {
+			Individual select = getRouletteIndividual(pop2);
+			tempPop2.add(mutateIndiv(select, 2));
+		}
+		pop1 = tempPop1;
+		pop2 = tempPop2;
+	}
+	
+	
+	public void prepareRouletteSelection(Population pop) {
+		double total = 0;
+		for (int i=0 ; i < pop.size() ; i++) {
+			total += pop.getScore(i);
+		}
+		
+		double bonusNotToGetZero = 0.001;
+		total += bonusNotToGetZero*pop.size();
+		
+		double current = 0;
+		for (int i=0 ; i < pop.size() ; i++) {
+			current += (pop.getScore(i)*1.0 + bonusNotToGetZero)/total;
+			pop.setDistribProba(i, current);
+		}
+		pop.setDistribProba(pop.size()-1, 1);
+		
+		System.out.println("Scores : " + Arrays.toString(pop.getScoreVector()));
+		System.out.println("DistribProba : " + Arrays.toString(pop.getDistribProbaVector()));
+	}
+	
+	public Individual getRouletteIndividual(Population pop) {
+		double val = r.nextDouble();
+		boolean found = false;
+		int i = 0;
+		while (!found) {
+			if (val <= pop.getDistribProba(i)) {found = true;}
+			else{ i++; }
+		}
+		
+		return pop.getIndividual(i);
+	}
+	
+	
+	public double calculateFitness(Individual a, List<Individual> Sa) {
+		double tot = 0;
+		for(int i=0 ; i < Sa.size() ; i++) {
+			if (a.getValue() > Sa.get(i).getValue()){
+				tot++;
+			}
+			else if (a.getValue() == Sa.get(i).getValue()){
+				//tot += 0.5;
+			}
+		}
+		
+		tot = tot/Population.sampleSize;
+		
+		tot = (2*tot)/virulence - (tot*tot)/(virulence*virulence);
+		
+		return tot;
+	}
+	
+	public Individual mutateIndiv(Individual oldIndiv, int nbPop) {
+		Individual newIndiv = new Individual(oldIndiv);
+		
+		//-------
+		double bias;
+		if (nbPop==1){ bias = 0.9; }
+		else { bias = 0.5; }
+		//-------
+		
+		
+		for (int i=0 ; i < oldIndiv.getLength() ; i++) {
+			if (r.nextDouble() <= mutationRate) {
+				//------
+				if (r.nextDouble() <= bias){
+					newIndiv.setOneAtBit(i);
+				}
+				else {
+					newIndiv.setZeroAtBit(i);
+				}
+				//-----
+			}
+		}
+		
+		return newIndiv;
+	}
+
+}
